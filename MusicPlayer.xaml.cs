@@ -91,6 +91,13 @@ namespace Telhai.DotNet.PlayerProject
             txtStatus.Text = "Playing";
         }
 
+        private void BtnSettings_Click(object sender, RoutedEventArgs e)
+        {
+            var settingsWin = new Settings();
+            settingsWin.OnScanCompleted += SettingsWin_OnScanCompleted;
+            settingsWin.ShowDialog();
+        }
+
         private void BtnPause_Click(object sender, RoutedEventArgs e)
         {
             mediaPlayer.Pause();
