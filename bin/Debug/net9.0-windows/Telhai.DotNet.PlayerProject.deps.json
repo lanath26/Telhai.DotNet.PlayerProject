@@ -1,0 +1,23 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v9.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v9.0": {
+      "Telhai.DotNet.PlayerProject/1.0.0": {
+        "runtime": {
+          "Telhai.DotNet.PlayerProject.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "Telhai.DotNet.PlayerProject/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}
