@@ -141,12 +141,6 @@
                         Background="#444"
                         Foreground="White"/>
 
-                <Button Name="BtnSettings"
-                        Content="Settings"
-                        Click="BtnSettings_Click"
-                        Margin="5"
-                        Background="#555"
-                        Foreground="White"/>
 
             </StackPanel>
 
