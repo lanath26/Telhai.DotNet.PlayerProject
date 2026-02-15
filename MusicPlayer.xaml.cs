@@ -56,7 +56,21 @@ namespace Telhai.DotNet.PlayerProject
             //{
             //    btn.Background = Brushes.LightGreen;
             //}
-            
+
+            if (lstLibrary.SelectedItem is not MusicTrack track)
+            {
+                txtStatus.Text = "Select a song first";
+                return;
+            }
+
+            // If no source loaded or different track selected -> load it
+            if (mediaPlayer.Source == null ||
+                !string.Equals(mediaPlayer.Source.LocalPath, track.FilePath, StringComparison.OrdinalIgnoreCase))
+            {
+                mediaPlayer.Open(new Uri(track.FilePath));
+                txtCurrentSong.Text = track.Title;
+                txtFilePath.Text = track.FilePath;
+            }
 
             mediaPlayer.Play();
             timer.Start();
@@ -158,6 +172,19 @@ namespace Telhai.DotNet.PlayerProject
             }
         }
 
+
+        // Single click (SelectionChanged) shows local title + local path
+        private void LstLibrary_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (lstLibrary.SelectedItem is MusicTrack track)
+            {
+                txtCurrentSong.Text = track.Title;
+                txtFilePath.Text = track.FilePath;
+                txtStatus.Text = "Selected";
+            }
+        }
+
+
         private void LstLibrary_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
             if (lstLibrary.SelectedItem is MusicTrack track)
@@ -166,6 +193,7 @@ namespace Telhai.DotNet.PlayerProject
                 mediaPlayer.Play();
                 timer.Start();
                 txtCurrentSong.Text = track.Title;
+                txtFilePath.Text = track.FilePath;
                 txtStatus.Text = "Playing";
             }
         }
