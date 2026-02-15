@@ -1,11 +1,18 @@
 ﻿using Microsoft.Win32;
+using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Telhai.DotNet.PlayerProject.Services;
 
 namespace Telhai.DotNet.PlayerProject
 {
@@ -19,6 +26,14 @@ namespace Telhai.DotNet.PlayerProject
         private List<MusicTrack> library = new List<MusicTrack>();
         private bool isDragging = false;
         private const string FILE_NAME = "library.json";
+
+        // iTunes Service + cancellation
+        private readonly ITunesSearchService _itunes = new ITunesSearchService();
+        private CancellationTokenSource? _itunesCts;
+
+        // Default artwork (online placeholder for now)
+        private readonly BitmapImage _defaultArtwork =
+            new BitmapImage(new Uri("https://via.placeholder.com/150/444444/FFFFFF?text=No+Art"));
 
         public MusicPlayer()
         {
@@ -38,7 +53,6 @@ namespace Telhai.DotNet.PlayerProject
             this.LoadLibrary();
         }
 
-
         private void Timer_Tick(object? sender, EventArgs e)
         {
             // Update slider ONLY if music is loaded AND user is NOT holding the handle
@@ -57,6 +71,7 @@ namespace Telhai.DotNet.PlayerProject
             //    btn.Background = Brushes.LightGreen;
             //}
 
+            // חובה לפי הדרישה: PLAY ינגן את השיר שנבחר
             if (lstLibrary.SelectedItem is not MusicTrack track)
             {
                 txtStatus.Text = "Select a song first";
@@ -75,18 +90,28 @@ namespace Telhai.DotNet.PlayerProject
             mediaPlayer.Play();
             timer.Start();
             txtStatus.Text = "Playing";
+
+            // דרישה: הקריאה ל-API במקביל לניגון, ללא חסימת UI + ביטול קריאה קודמת
+            _itunesCts?.Cancel();
+            _itunesCts = new CancellationTokenSource();
+            _ = LoadItunesMetadataAsync(track, _itunesCts.Token);
         }
+
         private void BtnPause_Click(object sender, RoutedEventArgs e)
         {
             mediaPlayer.Pause();
             txtStatus.Text = "Paused";
         }
+
         private void BtnStop_Click(object sender, RoutedEventArgs e)
         {
             mediaPlayer.Stop();
             timer.Stop();
             sliderProgress.Value = 0;
             txtStatus.Text = "Stopped";
+
+            // דרישה: למנוע קריאות מיותרות לשירות ע"י ביטול קריאה קודמת בעת מעבר/עצירה
+            _itunesCts?.Cancel();
         }
 
         private void SliderVolume_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -104,7 +129,6 @@ namespace Telhai.DotNet.PlayerProject
             isDragging = false; // Resume timer updates
             mediaPlayer.Position = TimeSpan.FromSeconds(sliderProgress.Value);
         }
-
 
         private void BtnAdd_Click(object sender, RoutedEventArgs e)
         {
@@ -172,7 +196,6 @@ namespace Telhai.DotNet.PlayerProject
             }
         }
 
-
         // Single click (SelectionChanged) shows local title + local path
         private void LstLibrary_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -181,20 +204,29 @@ namespace Telhai.DotNet.PlayerProject
                 txtCurrentSong.Text = track.Title;
                 txtFilePath.Text = track.FilePath;
                 txtStatus.Text = "Selected";
+
+                // דרישה: לחיצה רגילה תציג שם שיר ומסלול הקובץ + ברירת מחדל לתמונה/metadata
+                ShowDefaultMetadataForLocal(track, "Selected");
             }
         }
 
-
         private void LstLibrary_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
+            // דרישה: לחיצה כפולה ברשימה תנגן אותו
             if (lstLibrary.SelectedItem is MusicTrack track)
             {
                 mediaPlayer.Open(new Uri(track.FilePath));
                 mediaPlayer.Play();
                 timer.Start();
+
                 txtCurrentSong.Text = track.Title;
                 txtFilePath.Text = track.FilePath;
                 txtStatus.Text = "Playing";
+
+                // דרישה: קריאת API במקביל לניגון + ביטול קריאה קודמת
+                _itunesCts?.Cancel();
+                _itunesCts = new CancellationTokenSource();
+                _ = LoadItunesMetadataAsync(track, _itunesCts.Token);
             }
         }
 
@@ -207,7 +239,6 @@ namespace Telhai.DotNet.PlayerProject
             settingsWin.OnScanCompleted += SettingsWin_OnScanCompleted;
 
             settingsWin.ShowDialog();
-
         }
 
         private void SettingsWin_OnScanCompleted(List<MusicTrack> newTracksEventData)
@@ -224,9 +255,90 @@ namespace Telhai.DotNet.PlayerProject
             UpdateLibraryUI();
             SaveLibrary();
         }
+
+        // ===== iTunes helpers =====
+
+        private static string BuildSearchQueryFromFileName(string filePath)
+        {
+            // דרישה: החיפוש ל-API ייגזר משם הקובץ (מופרד ברווחים או מקף)
+            string name = Path.GetFileNameWithoutExtension(filePath) ?? "";
+            name = name.Replace("-", " ").Replace("_", " ").Trim();
+            return name;
+        }
+
+        private void ShowDefaultMetadataForLocal(MusicTrack track, string? status = null)
+        {
+            // דרישה: הגדר תמונת ברירת מחדל לשירים
+            txtMetaSong.Text = track.Title;
+            txtMetaArtist.Text = "-";
+            txtMetaAlbum.Text = "-";
+            imgArtwork.Source = _defaultArtwork;
+
+            // מסלול קובץ במחשב (לא מה API)
+            txtCurrentSong.Text = track.Title;
+            txtFilePath.Text = track.FilePath;
+
+            if (!string.IsNullOrWhiteSpace(status))
+                txtStatus.Text = status;
+        }
+
+        private async Task LoadItunesMetadataAsync(MusicTrack track, CancellationToken ct)
+        {
+            // UI לא נחסם: מציגים local מיד, ואת ה-API מביאים במקביל
+            ShowDefaultMetadataForLocal(track, "Loading metadata...");
+
+            string query = BuildSearchQueryFromFileName(track.FilePath);
+
+            try
+            {
+                // דרישה: שימוש ב ASYNC AWAIT + הפרדה לשכבת Service
+                var result = await _itunes.SearchAsync(query, ct);
+
+                // אם בוטל בגלל מעבר שיר - לא ממשיכים לעדכן UI
+                ct.ThrowIfCancellationRequested();
+
+                if (result == null)
+                {
+                    // דרישה: במידה והתקבלה שגיאה/אין מידע -> להציג שם קובץ ללא סיומת + מסלול מלא
+                    ShowDefaultMetadataForLocal(track, "No metadata found (showing local)");
+                    return;
+                }
+
+                // הצגת נתונים מה API
+                txtMetaSong.Text = string.IsNullOrWhiteSpace(result.TrackName) ? track.Title : result.TrackName;
+                txtMetaArtist.Text = string.IsNullOrWhiteSpace(result.ArtistName) ? "-" : result.ArtistName;
+                txtMetaAlbum.Text = string.IsNullOrWhiteSpace(result.CollectionName) ? "-" : result.CollectionName;
+
+                // תמונת עטיפת אלבום (ברירת מחדל אם אין)
+                if (!string.IsNullOrWhiteSpace(result.ArtworkUrl100))
+                {
+                    var bmp = new BitmapImage();
+                    bmp.BeginInit();
+                    bmp.UriSource = new Uri(result.ArtworkUrl100);
+                    bmp.CacheOption = BitmapCacheOption.OnLoad;
+                    bmp.EndInit();
+                    bmp.Freeze();
+
+                    imgArtwork.Source = bmp;
+                }
+                else
+                {
+                    imgArtwork.Source = _defaultArtwork;
+                }
+
+                txtStatus.Text = "Playing (metadata loaded)";
+            }
+            catch (OperationCanceledException)
+            {
+                // דרישה: מניעת קריאות מיותרות לשירות - ביטול קריאה קודמת (זה תקין)
+            }
+            catch
+            {
+                // דרישה: במידה והתקבלה שגיאה בקריאה יש להציג local (שם קובץ ללא סיומת + מסלול מלא)
+                ShowDefaultMetadataForLocal(track, "Metadata error (showing local)");
+            }
+        }
     }
-
-
 
     //private void MusicPlayer_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     //{
