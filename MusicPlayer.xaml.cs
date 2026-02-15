@@ -156,12 +156,6 @@ namespace Telhai.DotNet.PlayerProject
             }
         }
 
-        private void BtnSettings_Click(object sender, RoutedEventArgs e)
-        {
-            Settings settingsWin = new Settings();
-            settingsWin.OnScanCompleted += SettingsWin_OnScanCompleted;
-            settingsWin.ShowDialog();
-        }
 
         private void SettingsWin_OnScanCompleted(List<MusicTrack> newTracksEventData)
         {

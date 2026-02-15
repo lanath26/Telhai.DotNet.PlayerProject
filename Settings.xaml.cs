@@ -16,9 +16,7 @@ using System.Windows.Media.Imaging;
 
 namespace Telhai.DotNet.PlayerProject
 {
-    /// <summary>
-    /// Interaction logic for Settings.xaml
-    /// </summary>
+   
     public partial class Settings : Window
     {
         private AppSettings currentSettings;
