@@ -146,15 +146,28 @@ namespace Telhai.DotNet.PlayerProject
             }
         }
 
+
         private void BtnRemove_Click(object sender, RoutedEventArgs e)
         {
             if (lstLibrary.SelectedItem is MusicTrack track)
             {
+                // remove from library list + library.json
                 library.Remove(track);
                 UpdateLibraryUI();
                 SaveLibrary();
+
+                // remove from song_cache.json
+                _songCache.Remove(track.FilePath);
+
+                txtCurrentSong.Text = "No Song Selected";
+                txtArtist.Text = "Artist: -";
+                txtAlbum.Text = "Album: -";
+                txtFilePath.Text = "Path: -";
+                imgCover.Source = null; 
             }
         }
+
+
 
 
         private void SettingsWin_OnScanCompleted(List<MusicTrack> newTracksEventData)

@@ -1,6 +1,8 @@
 ﻿using System.IO;
 using System.Text.Json;
 using Telhai.DotNet.PlayerProject.Models;
+using System.Collections.Generic;
+
 
 namespace Telhai.DotNet.PlayerProject.Services;
 
@@ -50,4 +52,16 @@ public class SongCacheService
         _cache[record.FilePath] = record;
         Save();
     }
+
+    public bool Remove(string filePath)
+    {
+        // works with Dictionary.Remove(key, out value) / IDictionary extension overload
+        var removed = _cache.Remove(filePath, out _);
+
+        if (removed)
+            Save();
+
+        return removed;
+    }
+
 }
